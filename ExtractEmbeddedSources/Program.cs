@@ -15,7 +15,7 @@ internal class Program
     private static readonly Guid s_embeddedSourceGuid = new("0E8A571B-6926-466E-B4AD-8AB04611F5FE");
 
     private static readonly Encoding s_outputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
-    private const string Usage = "Usage: ExtractSources.exe -i=<input file or directory> -o=<output directory>";
+    private const string Usage = "Usage: ExtractEmbeddedSources.exe -i=<input file or directory> -o=<output directory>";
 
     static void Main(string[] args)
     {
@@ -44,24 +44,24 @@ internal class Program
             }
             else if (Directory.Exists(input))
             {
-                // EnumerateFiles は複数パターンを受け付けないので Concat でつないでおく
-                var files = Enumerable.Concat(
-                    Directory.EnumerateFiles(input, "*.dll", searchOption),
-                    Directory.EnumerateFiles(input, "*.pdb", searchOption));
+                var files = Directory.EnumerateFiles(input, "*.*", searchOption)
+                    .Where(x => HasTargetExtension(x) && !excludes.Any(x.Contains));
 
-                foreach (var file in files.Where(x => !excludes.Any(x.Contains)))
+                foreach (var file in files)
                 {
                     ProcessFile(file, output);
                 }
+
+                static bool HasTargetExtension(string path) => Path.GetExtension(path) is ".exe" or ".dll" or ".pdb";
             }
             else
             {
-                Console.WriteLine($"ExtractSources.exe : file or directory '{input}' is not found.");
+                Console.WriteLine($"ExtractEmbeddedSources.exe : file or directory '{input}' is not found.");
             }
         }
         catch (Exception e)
         {
-            Console.WriteLine($"ExtractSources.exe : an error occured, {e.Message}");
+            Console.WriteLine($"ExtractEmbeddedSources.exe : an error occured, {e.Message}");
             Environment.Exit(1);
         }
     }
@@ -70,12 +70,13 @@ internal class Program
     {
         try
         {
-            if (input.EndsWith(".dll"))
+            var extension = Path.GetExtension(input);
+            if (extension is ".exe" or ".dll")
             {
                 using var stream = File.OpenRead(input);
                 ProcessDllEmbeddedPortablePdb(stream, output);
             }
-            else if (input.EndsWith(".pdb"))
+            else if (extension is ".pdb")
             {
                 using var stream = File.OpenRead(input);
                 ProcessPortablePdb(stream, output);
