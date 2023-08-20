@@ -15,17 +15,17 @@ internal class Program
     private static readonly Guid s_embeddedSourceGuid = new("0E8A571B-6926-466E-B4AD-8AB04611F5FE");
 
     private static readonly Encoding s_outputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
-    private const string Usage = "Usage: ExtractEmbeddedSources.exe -i=<input file or directory> -o=<output directory>";
+    private const string Usage = "Usage: ExtractEmbeddedSources.exe [-o=<output directory>] <input file or directory>";
 
     static void Main(string[] args)
     {
         // 引数処理
         var parameters = args
-            .Select(x => x.Split('=', 2))
-            .ToLookup(x => x.FirstOrDefault() ?? string.Empty, x => x is [_, var v] ? v : null);
+            .Select(x => x.Split('=', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .ToLookup(x => x is [var key, _] ? key : string.Empty, x => x?.LastOrDefault(string.Empty));
 
-        var input = parameters["--input"].LastOrDefault() ?? parameters["-i"].LastOrDefault();
-        var output = parameters["--output"].LastOrDefault() ?? parameters["-o"].LastOrDefault();
+        var input = parameters[string.Empty].LastOrDefault();
+        var output = parameters["--output"].LastOrDefault() ?? parameters["-o"].LastOrDefault() ?? Environment.CurrentDirectory;
         var excludes = parameters["--exclude"].SelectMany(x => x?.Split(new[] { ',', ';' }) ?? Array.Empty<string>()).ToHashSet();
         var searchOption = parameters["--recursive"].Any() ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
 
@@ -52,7 +52,7 @@ internal class Program
                     ProcessFile(file, output);
                 }
 
-                static bool HasTargetExtension(string path) => Path.GetExtension(path) is ".exe" or ".dll" or ".pdb";
+                static bool HasTargetExtension(string path) => Path.GetExtension(path) is ".dll" or ".pdb";
             }
             else
             {
@@ -71,7 +71,7 @@ internal class Program
         try
         {
             var extension = Path.GetExtension(input);
-            if (extension is ".exe" or ".dll")
+            if (extension is ".dll")
             {
                 using var stream = File.OpenRead(input);
                 ProcessDllEmbeddedPortablePdb(stream, output);
